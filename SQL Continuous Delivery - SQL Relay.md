@@ -1,6 +1,6 @@
-#Continuous Delivery
-##Gavin Campbell
-###SQL Relay 6/10/2016
+# Continuous Delivery
+## Gavin Campbell
+### SQL Relay 6/10/2016
 
 SQL Server Data Tools -> Look this up
 Allows automated deployment, creates a development experience
@@ -15,7 +15,7 @@ This is a bit of a waste of time. Instead we can publish to an actual SQL instan
 
 Instead we can add the dacpac to our build chain. On deployment it will compare the dacpac model to the deployed one and affect any changes.
 
-####Testing
+#### Testing
 How do we test this?
 We bundle SQL scripts into a project with a .net wrapper. The unit tests then run against a deployed DB, you can create rules for the unit tests there.
 
