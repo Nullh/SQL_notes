@@ -1,6 +1,8 @@
 # Mastering T-SQL Querying Fundamentals - SQLBits
 ### Itzik Ben-Gan
 
+http://tsql.solidq.com/SourceCodes/Mastering%20T-SQL%20Querying%20Fundamentals.txt
+
 # Processing Order
 
 1. FROM
@@ -184,7 +186,7 @@ WHERE NOT EXISTS (
     WHERE O.custid = C.custid
     );
 ```
-An excellent practice is to always use table alisases in subqueries to prevent any confusion.
+An excellent practice is to always use table aliases in subqueries to prevent any confusion.
 
 # Table Expressions
 
@@ -241,3 +243,26 @@ CROSS APPLY works similar to a cross join. Returns only rows for the left table 
 OUTER APPLY adds rows from the left table for values on the right which would return an empty set.
 
 # Set operators
+Set operators work on query results with compatible schema.
+Operators are UNION (ALL), INTERSECT and EXCEPT. INTERSECT precedes UNION and EXCEPT in execution order.
+
+## UNION
+UNION ALL returns a result with all rows from both input sets.
+UNION returns a result set with distinct rows from both input sets, it's implicitly distinct.
+NULLS compared to NULLs resolve as TRUE.
+UNION ALL is usually recommended for performance, even if UNION may be appropriate.
+
+## INTERSECT
+Returns only distinct rows that appear in both sets.
+
+## EXCEPT
+Returns distinct rows that appear in the first set and not in the second.
+
+# Recent T-SQL Additions
+* DROP IF EXISTS and CREATE OR ALTER (2016sp1) are self explanatory!
+* TRIM (vNext) trails leading and trailing spaces.
+* STRING_SPLIT (2016) splits a string into a set based on a delimiter. (NOTE: Cardinality estimator guesses 50 rows every time)
+* STRING_AGG (vNext) creates ordered sets (pulls multiple row values into a string to return as a column)
+* DATEDIFF_BIG (2016) returns a BIGINT datediff (for bigger values)
+* AT TIME ZONE (2016) self explanatory!
+* Temporal Tables (2016) Keep previous versions of data in a history table. The table must have a primary key, you specify SYSTEM_VERSIONING = ON and name a table to track the history as well as two DATETIME2 rows specially created as the transaction start and end times and the clause PERIOD FOR SYSTEM_TIME specifying these columns. **NOTE:** The new columns for this feature can be marked as [HIDDEN] so they won't show up in a SELECT \*. The history table is obfuscated away, it won't appear in objex at table level. To query a temporal table you use the FOR SYSTEM_TIME AS OF \<datetime> clause to see the value at a certain time. You can also do FROM \<start> TO \<end>, BETWEEN \<start> AND \<end> and CONTAINED IN(\<start>, \<end>).
