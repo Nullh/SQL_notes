@@ -61,6 +61,7 @@ The image of the order (LQP Diagram) is in Itzik's articles on sqlmag.com
 
 # Joins
 A  join is a table operator from the FROM clause. Takes place between two tables, left and right.
+If using an INNER JOIN it doesn't amtter if you filter in the ON or WHERE clauses.
 
 ## Cross Joins
 Old SQL-89 standard only supported CROSS JOIN, using `SELECT * FROM t1, t2`.
@@ -68,10 +69,12 @@ SQL-92 changed this to support outer joins, so the old comma syntax was no longe
 
 Self cross joins are possible between multiple instances of the same table, this requires aliasing.
 
-`SELECT t1.id, t1.name,
+```
+SELECT t1.id, t1.name,
         t2.id, t2.name
 FROM Employees t1
-    CROSS JOIN Employees t2;`
+    CROSS JOIN Employees t2;
+```
 
 Can be used to create sequences of values, such as a numbers table.
 
@@ -79,10 +82,12 @@ Can be used to create sequences of values, such as a numbers table.
 Implements two stages, a Cartesian join then a filter.
 ALWAYS use the SQL-92 stadard:
 
-`SELECT ...
+```
+SELECT ...
 FROM <table> t1
     INNER JOIN <table> t2
-    ON t1.id = t2.id;`
+    ON t1.id = t2.id;
+```
 
 ## Composite Joins
 These are based on joining on multiple columns. Check this if your primary keys are composites!
@@ -93,7 +98,146 @@ This is a good way to return unique pairs.
 
 ## Multi-Join Queries
 We process joins in written order, so this is important when we specify more than 1 join.
-The optimiser will use cost estimates to re-order joins to be efficient, as long as it will resturn the correct result set. You can use WITH FORCE ORDER to enforce your join order and bypass the optmiser and force it to perform your steps in the order written.
+The optimiser will use cost estimates to re-order joins to be efficient, as long as it will return the correct result set. You can use WITH FORCE ORDER to enforce your join order and bypass the optmiser and force it to perform your steps in the order written.
 When we get to multi-joins there is less option for the optmiser to re-order your joins for speed.
 
 ## Outer Joins
+One (or both) tables are marked as preserved. NULLs are used in the non-preserved columns in outer rows.
+Can be LEFT, RIGHT or FULL.
+
+### Including missing values
+Use an auxiliary table or function to create a list of values then outer join to your fact table:
+(see slides p 25)
+
+### Left Outer Join syntax
+Because of the join order, if you're doing outer joins on multiple tables, place the second join in brackets, and leave the last ON out to make it clear which order things are being processed in.
+
+### Using COUNT aggregate with outer joins
+If you're using COUNT in an outer join, specify the column name to count rather than * otherwise it will count NULLs
+
+# Subqueries
+
+## Self contained Subqueries
+Subquery independent of outer query.
+EG order with maximum orderID
+```
+SELECT orderid, orcerdate, empid, custid
+FROM Sales.Orders
+WHERE orderid = (
+                    SELECT MAX(O.orderid)
+                    FROM Sales.Orders AS O
+                );
+```
+
+## Scalar Subqueries
+If a subquery returns an empty set, the results is converted to NULL
+Will break if returns more than one value.
+```
+SELECT orderid
+FROM Sales.Orders
+WHERE empid = (
+                SELECT E.empid
+                FROM HR>Employees AS E
+                WHERE E.lastname LIKE N'B%'
+                );
+```
+
+## Multi-valued Subqueries
+Things like IN a subquery set, also the reverse NOT IN.
+
+## Correlated Subqueries
+Where inner query correlated to outer table.
+```
+SELECT custid, orderid, orderdate, empid
+FROM Sales.Order AS O1
+WHERE orderid = (
+    SELECT MAX(O2.orderid)
+    FROM Sales.Orders AS O2
+    Where O2.custid = O1.custid
+    );
+```
+
+## EXISTS
+Will accept a subquery as input. Returns true if at least one row, false if empty set. Never returns UNKNOWN.
+Preferable to IN as presents less opportunities for issues to arise with NULLs and is more natural language.
+
+If using a LEFT OUTER JOIN with a WHERE it is faster to use an NOT EXISTS or EXISTS instead as there are specific T-SQL shortcuts to detect the Semi-join and only return the top 1 row when using EXISTS.
+
+## Troubles with NOT IN and NULLs
+Customers from Spain who placed no orders:
+```
+SELECT custid, companyname
+FROM Sales.Customers AS C
+WHERE custid NOT IN (
+    SELECT O.custid
+    FROM Sales.Orders AS O
+    );
+```
+Works fine of there are no NULLs. If subquery returns a single NULL then the query will return an empty set as there will be a comparison to UNKNOWN (from comparing to NULL).
+Can fix this by adding a line to eliminate NULLs or just use NOT EXISTS instead. EXISTS will optimize better:
+```
+SELECT custid, companyname
+FROM Sales.Customers AS C
+WHERE NOT EXISTS (
+    SELECT *
+    FROM Sales.Orders AS O
+    WHERE O.custid = C.custid
+    );
+```
+An excellent practice is to always use table alisases in subqueries to prevent any confusion.
+
+# Table Expressions
+
+## Derived tables
+Example:
+```
+SELECT *
+FROM (
+    SELECT custid, companyname
+    FROM Sales.Customers
+    WHERE country = N'USA'
+    ) AS USACusts;
+```
+These can accept parameters and can be nested. Nesting sucks to follow, and multiple references to overlapping columns means it's often better to use a CTE.
+
+## Common Table Expressions
+Example:
+```
+WITH USACusts AS
+(
+    SELECT custid, companyname
+    FROM Sales.Customers
+    WHERE country = N'USA
+)
+SELECT * FROM USACusts;
+```
+These can use inline or external aliasing, and supports multiple CTEs:
+```
+WITH C1 AS
+(
+    SELECT YEAR(orderdate) AS orderyear, custid
+    FROM Sales.Orders
+),
+C2 AS
+(
+    SELECT orderyear, COUNT(DISTINCT custid) as numcusts
+    FROM C1
+    GROUP BY orderyear
+)
+SELECT orderyear, numcusts
+FROM C2
+WHERE numcusts > 70;
+```
+Because we name the CTE to start with, we can use multiple copies of the CTE in the FROM statement, so it can be compared to itself.
+
+# Views
+Views are basically table expressions that can be re-used.
+Also inline table values functions, which are basically views that accept parameters.
+`CREATE FUNCTION \<blah> (@parm as int) RETURNS TABLE AS RETRUN \<queryusingparm>`
+
+# Apply
+Similar to a join, but looks at two inputs a set. Has two forms; CROSS APPLY and OUTER APPLY.
+CROSS APPLY works similar to a cross join. Returns only rows for the left table where the right table expression is an empty set.
+OUTER APPLY adds rows from the left table for values on the right which would return an empty set.
+
+# Set operators
