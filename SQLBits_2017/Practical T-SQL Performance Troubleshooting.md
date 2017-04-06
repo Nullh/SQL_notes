@@ -90,3 +90,35 @@ In case of a page corruption, take a tail log backup and restore only the damage
 We should be doing storage stress tests. Storage may be faulty or misconfigured. We need to look at MBps, IOPs and latency.
 Microsoft offer Diskspeed and SQLIOSim to test your storage out. Also try Crystal DiskMark.
 When testing a SAN you should test using a file larger than your SAN cache to get real disk figures.
+
+## Prominent wait types
+* PAGEIOLATCH -> Data not in buffer, SQL has to pull the page from storage.
+* CXPACKET -> Parallelism waits.
+* LCK_M_ -> Time taken to grab a lock
+*
+
+### PAGEIOLATCH
+Waiting for SQL Server to read a page from disk. Indicates either a problem with the IO subsystem or we don't have enough memory to keep pages required in the buffer pool.
+Check for a low PLE, large table or index scans, check the dm_io_virtual_file_stats and are you having CXPACKET waits too?
+
+### Memory Models
+**Conventional Memory Model**
+Buffer pool can grow and shrink.
+
+**Locked Pages**
+You can use LPiM to force SQL to keep buffer pool in memory even if Windows needs to trim the working set for SQL Server. This can lead to an out of memory situation for the server.
+If you're using this setting you need to set a limit on how much memory SQL Server can use. You can set this to the server max but leave either 2GB or 10%, unless you're running other apps.
+
+**Large Pages**
+SQL Server pages are 8k, but on 32-bit windows a page is 4k.
+With a 64-bit server you can use larger pages, but this means SQL Server will need to grab all its memory when it starts.
+It might be useful in certain circumstances, but in general not recommended.
+
+### CXPACKET
+ALL that this wait type tells you is that there are parallel execution plans, not whether they are good or bad!
+A worker thread reports the CXPACKET wait whilst waiting for the slowest thread to complete, as well as the coordinator thread which reports this wait until the parallel process needs re-syncing.
+You're best bet is checking sys.dm_os_waiting_tasks to see what threads are sat waiting and for what reason.
+This wait type can also mean large table scans are happening.
+Set MAXDOP to the number of cores in one NUMA node, this ensures a parallel plan stays in a single NUMA node.
+Set cost threshold for parallelism to 30 and adjust as necessary.
+Messing up these settings can lead to thread starvation, which will kill performance.
